@@ -8,6 +8,13 @@ RESULTS_DIR := results/raw_data
 include $(DGEMM_CONFIG_MK)
 include config_files/common.mk
 
+# TEST_CONFIG_MK is optional: it selects a subtest variant (e.g.
+# paper_artifact/demo_test_configs/test1a.mk) and overrides the sweep parameters
+# above with subtest-specific values. Included last so it wins.
+ifneq ($(strip $(TEST_CONFIG_MK)),)
+include $(TEST_CONFIG_MK)
+endif
+
 CONFIG_VARS := DGEMM_IMPL_NAME SO_PATH LDFLAGS RUN_PREFIX CXX USE_CUDA CXXFLAGS \
                OUTER_SCALING INNER_SCALING LOG2_MIN_DIM LOG2_MAX_DIM \
                LOG2_MIN_SCALING_FACTOR LOG2_MAX_SCALING_FACTOR LOG2_INC_SCALING_FACTOR \
@@ -15,9 +22,19 @@ CONFIG_VARS := DGEMM_IMPL_NAME SO_PATH LDFLAGS RUN_PREFIX CXX USE_CUDA CXXFLAGS 
 $(foreach v,$(CONFIG_VARS),$(eval $(v) := $$(strip $$($(v)))))
 
 # test4 permute: default INNER_PERMUTE=1; override on the command line with
-# INNER_PERMUTE=k or OUTER_PERMUTE=k (OUTER_PERMUTE takes precedence when non-zero)
+# INNER_PERMUTE=k or OUTER_PERMUTE=k (OUTER_PERMUTE takes precedence when non-zero),
+# or via TEST_CONFIG_MK (e.g. paper_artifact/demo_test_configs/test4a.mk)
 OUTER_PERMUTE ?= 0
 INNER_PERMUTE ?= 10
+
+# test1/test2 input variant: defaults to the "c" subtest; override via
+# TEST_CONFIG_MK (e.g. paper_artifact/demo_test_configs/test1a.mk sets INPUT_TYPE := test1a)
+TEST1_INPUT_TYPE := test1c
+TEST2_INPUT_TYPE := test2c
+ifneq ($(strip $(INPUT_TYPE)),)
+TEST1_INPUT_TYPE := $(INPUT_TYPE)
+TEST2_INPUT_TYPE := $(INPUT_TYPE)
+endif
 
 # --- common CPPFLAGS (all test binaries) ---
 COMMON_CPPFLAGS :=
@@ -62,11 +79,11 @@ DGEMM_WRAPPER := $(SRC_DIR)/dgemm_wrapper.cpp
 # --- test binaries ---
 $(BIN_DIR)/test1: $(SRC_DIR)/test1.cpp $(DGEMM_WRAPPER)
 	@mkdir -p $(BIN_DIR)
-	$(CXX) -std=c++17 $(CXXFLAGS) $(COMMON_CPPFLAGS) -DINPUT_TYPE=\"test1c\" -I$(INCLUDE_DIR) $^ $(LDFLAGS) -o $@
+	$(CXX) -std=c++17 $(CXXFLAGS) $(COMMON_CPPFLAGS) -DINPUT_TYPE=\"$(TEST1_INPUT_TYPE)\" -I$(INCLUDE_DIR) $^ $(LDFLAGS) -o $@
 
 $(BIN_DIR)/test2: $(SRC_DIR)/test2.cpp $(DGEMM_WRAPPER)
 	@mkdir -p $(BIN_DIR)
-	$(CXX) -std=c++17 $(CXXFLAGS) $(COMMON_CPPFLAGS) -DINPUT_TYPE=\"test2c\" -I$(INCLUDE_DIR) $^ $(LDFLAGS) -o $@
+	$(CXX) -std=c++17 $(CXXFLAGS) $(COMMON_CPPFLAGS) -DINPUT_TYPE=\"$(TEST2_INPUT_TYPE)\" -I$(INCLUDE_DIR) $^ $(LDFLAGS) -o $@
 
 $(BIN_DIR)/test3: $(SRC_DIR)/test3.cpp $(DGEMM_WRAPPER)
 	@mkdir -p $(BIN_DIR)
@@ -80,12 +97,12 @@ $(BIN_DIR)/test4: $(SRC_DIR)/test4.cpp $(DGEMM_WRAPPER)
 run_test1: $(BIN_DIR)/test1
 	@mkdir -p $(RESULTS_DIR)
 	$(RUN_PREFIX) ./$(BIN_DIR)/test1
-	.venv/bin/python3 ./scripts/plot_results_test_1.py $(RESULTS_DIR)/test1c/$(DGEMM_IMPL_NAME)
+	.venv/bin/python3 ./scripts/plot_results_test_1.py $(RESULTS_DIR)/$(TEST1_INPUT_TYPE)/$(DGEMM_IMPL_NAME)
 
 run_test2: $(BIN_DIR)/test2
 	@mkdir -p $(RESULTS_DIR)
 	$(RUN_PREFIX) ./$(BIN_DIR)/test2
-	.venv/bin/python3 ./scripts/plot_results_test_2_3_4.py $(RESULTS_DIR)/test2c/$(DGEMM_IMPL_NAME)
+	.venv/bin/python3 ./scripts/plot_results_test_2_3_4.py $(RESULTS_DIR)/$(TEST2_INPUT_TYPE)/$(DGEMM_IMPL_NAME)
 
 run_test3: $(BIN_DIR)/test3
 	@mkdir -p $(RESULTS_DIR)
@@ -108,11 +125,11 @@ grade: $(BIN_DIR)/test1 $(BIN_DIR)/test2 $(BIN_DIR)/test3 $(BIN_DIR)/test4
 	echo;\
 	echo " ** Administering Test 1"; \
 	$(RUN_PREFIX) ./$(BIN_DIR)/test1; \
-	.venv/bin/python3 ./scripts/plot_results_test_1.py $(RESULTS_DIR)/test1c/$(DGEMM_IMPL_NAME); p1=$$?; \
+	.venv/bin/python3 ./scripts/plot_results_test_1.py $(RESULTS_DIR)/$(TEST1_INPUT_TYPE)/$(DGEMM_IMPL_NAME); p1=$$?; \
 	echo;\
 	echo " ** Administering Test 2"; \
 	$(RUN_PREFIX) ./$(BIN_DIR)/test2; \
-	.venv/bin/python3 ./scripts/plot_results_test_2_3_4.py $(RESULTS_DIR)/test2c/$(DGEMM_IMPL_NAME); p2=$$?; \
+	.venv/bin/python3 ./scripts/plot_results_test_2_3_4.py $(RESULTS_DIR)/$(TEST2_INPUT_TYPE)/$(DGEMM_IMPL_NAME); p2=$$?; \
 	echo;\
 	echo " ** Administering Test 3"; \
 	$(RUN_PREFIX) ./$(BIN_DIR)/test3; \
