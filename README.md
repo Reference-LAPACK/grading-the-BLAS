@@ -102,7 +102,13 @@ Rerunning any target overwrites its output directory; no timestamped directories
 
 The harness has four test binaries, each targeting a different class of difficult input.
 
-> TODO: decribe each
+- **Test 1** : Inputs are largely sparse rows and columns whose nonzero entries span an extreme dynamic range, arranged so that each targeted output entry has a single, exactly-known tiny value hidden among contributions that cancel to exact zero. Stresses whether an implementation can recover small target values rather than losing them to absorption by far larger magnitudes. Referred to in the output structure on disk as `test1c`.
+
+- **Test 2** : Rank-structured inputs with entries spanning a wide dynamic range and randomized sign patterns, so that each output entry is formed by heavy cancellation among positive and negative terms of very different sizes. Stresses accuracy under catastrophic cancellation combined with wide dynamic range. Referred to in the output structure on disk as `test2c`.
+
+- **Test 3** : Entrywise-positive inputs whose rows and columns are scaled to span a wide range of magnitudes, so each dot product accumulates terms of widely varying size with no cancellation. Stresses accumulation accuracy across large magnitude spreads — whether small contributions survive when summed alongside dominant ones. Referred to in the output structure on disk as `test3`.
+
+- **Test 4** : Inputs whose entries span an extreme dynamic range while the true products remain benign; the contraction dimension is randomly reordered across ten permutations and the worst relative error is reported. Stresses consistency of accuracy under reordering of the summation — sensitivity to accumulation order and internal blocking. Referred to in the output structure on disk as `test2b_w_inner_permute`.
 
 ---
 
