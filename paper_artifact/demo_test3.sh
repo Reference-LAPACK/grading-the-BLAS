@@ -25,3 +25,8 @@ do
         make run_test3 DGEMM_CONFIG_MK=${d} TEST_CONFIG_MK=${t}
     done
 done
+
+.venv/bin/python3 ./scripts/generate_summary_table.py \
+    --name test3 \
+    --test-configs "${TEST_CONFIGS[@]}" \
+    --dgemm-configs "${DGEMM_CONFIGS[@]}"
