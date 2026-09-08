@@ -6,19 +6,19 @@ import matplotlib as mpl
 from collections import defaultdict
 from pathlib import Path
 
-from plot_utils import parse_path_metadata, unique_output_path
+from plot_utils import parse_path_metadata, unique_output_path, reference_curves
 
 # Per-cell pass/fail predicates keyed by input_type.
 # None means no threshold is defined yet; the check is skipped.
 _CELL_THRESHOLD = {
     "test2c":                  lambda d, val: val < d,   # max f_A(n) < n
-    "test3":                   None,                      # TBD
+    "test3":                   lambda d, val: val < d**2,   # max f_A(n) < n
     "test2b_w_inner_permute":  None,                      # TBD
     "test2b_w_outer_permute":  None,                      # TBD
 }
 _THRESHOLD_DESC = {
     "test2c":                  "max componentwise f_A(n) < n",
-    "test3":                   None,
+    "test3":                   "max componentwise f_B(n) < n**2",
     "test2b_w_inner_permute":  None,
     "test2b_w_outer_permute":  None,
 }
@@ -39,7 +39,7 @@ def collect_max_vals(paths):
     value_descriptor = descriptors.pop() if descriptors else "value"
     return grouped, value_descriptor
 
-def plot_lines(grouped, ax, scale_style, y_label, show_yx=True):
+def plot_lines(grouped, ax, scale_style, y_label, show_yx=True, input_type=None):
     """Draw one line per scale into ax."""
     impl = next(iter(grouped))
     for s in sorted(grouped[impl]):
@@ -55,16 +55,16 @@ def plot_lines(grouped, ax, scale_style, y_label, show_yx=True):
             linewidth=1.5,
         )
     all_ds_flat = sorted({pt[0] for points in grouped[impl].values() for pt in points})
+    all_ys_flat = [y for pts in grouped[impl].values() for _, y in pts]
     if show_yx and all_ds_flat:
-        ax.plot(all_ds_flat, all_ds_flat, color='black', linestyle=':', linewidth=1.5)
-        ax.text(all_ds_flat[-1], all_ds_flat[-1], r"  $f(n)=n$",
-                ha='right', va='bottom', fontsize=FONTSIZE, color='black')
+        for ref_ys, ref_label in reference_curves(input_type, all_ds_flat):
+            ax.plot(all_ds_flat, ref_ys, color='black', linestyle=':', linewidth=1.5)
+            ax.text(all_ds_flat[-1], ref_ys[-1], ref_label,
+                    ha='right', va='bottom', fontsize=FONTSIZE, color='black')
+            all_ys_flat = all_ys_flat + list(ref_ys)
     # Cap ylim before setting log scale so the tick locator never needs
     # to compute 10^309+, which overflows float64 in old matplotlib/numpy.
     _safe_top = np.finfo(np.float64).max / 1e3   # ~1.8e305; log10 ceil = 306, safe
-    all_ys_flat = [y for pts in grouped[impl].values() for _, y in pts]
-    if show_yx and all_ds_flat:
-        all_ys_flat = all_ys_flat + list(all_ds_flat)
     pos_ys = [y for y in all_ys_flat if np.isfinite(y) and y > 0]
     if pos_ys:
         ax.set_ylim(bottom=min(pos_ys) * 0.5,
@@ -225,6 +225,7 @@ def plot_max_vals(paths, y_label="f(n)", figsize_per_plot: tuple = (9, 6), show_
     heatmap_cmap = mpl.colormaps['cividis']
 
     mpl.rcParams['font.family'] = 'serif'
+    mpl.rcParams['mathtext.fontset'] = 'dejavuserif'
     global FONTSIZE
     FONTSIZE = 20
     line_w = figsize_per_plot[0]
@@ -243,7 +244,7 @@ def plot_max_vals(paths, y_label="f(n)", figsize_per_plot: tuple = (9, 6), show_
         for i, s in enumerate(all_scales_for_lines)
     }
 
-    plot_lines(grouped, axes[0], scale_style, y_label, show_yx=show_yx)
+    plot_lines(grouped, axes[0], scale_style, y_label, show_yx=show_yx, input_type=input_type)
     plot_heatmap(grids, all_ds, all_scales, axes[1], cmap=heatmap_cmap, y_label=y_label)
 
     fig.tight_layout(w_pad=6)
