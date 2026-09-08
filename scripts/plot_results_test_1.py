@@ -113,7 +113,7 @@ def plot_recovery_heatmap(all_ds, all_scales, Z):
     ax.tick_params(which='minor', length=0)
 
     cb = fig.colorbar(im, ax=ax, shrink=0.75)
-    cb.set_label("Target values recovered", fontsize=FONTSIZE)
+    cb.set_label("Correct target values", fontsize=FONTSIZE)
     cb.set_ticks([0, 25, 50, 75, 100])
     cb.ax.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(lambda x, _: f"{x:.0f}%"))
     cb.ax.tick_params(labelsize=FONTSIZE)
@@ -128,7 +128,7 @@ def plot_recovery_heatmap(all_ds, all_scales, Z):
     ]
     passed = len(failures) == 0
     if passed:
-        print("    PASS: all target values recovered at 100%")
+        print("    PASS: 100% of target values computed correctly")
     else:
         print(f"    FAIL: {len(failures)} cell(s) below 100%:")
         for s, d, val in failures:
