@@ -4,6 +4,12 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 VERSION_NUMBER=2.0.10
 
+source "${SCRIPT_DIR}/resolve_cublas.sh"
+if [ -z "${CUBLAS_SO_PATH}" ]; then
+    echo "Error: libcublas.so is required to build GEMMul8; aborting." >&2
+    exit 1
+fi
+
 mkdir -p ${REPO_ROOT}/submodules
 cd ${REPO_ROOT}/submodules
 
@@ -22,4 +28,5 @@ cd GEMMul8-${VERSION_NUMBER}/GEMMul8
 # # comment out any APIs not relevant to INT8 DGEMM for faster compilation
 sed -i '102,114s/^/\/\/ /; 120,157s/^/\/\/ /' src/gemmul8.cu
 
+export LIBRARY_PATH=$(dirname ${CUBLAS_SO_PATH})
 make -j4 lib/libgemmul8.so

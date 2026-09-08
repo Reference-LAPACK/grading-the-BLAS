@@ -69,21 +69,7 @@ else
     echo "Warning: Could not find libopenblas.so"
 fi
 
-unset CUBLAS_SO_PATH
-if [ -n "${CUDA_HOME}" ]
-then
-    # covers both a standard CUDA Toolkit install (libcublas.so under
-    # CUDA_HOME itself) and an NVIDIA HPC SDK install (CUDA_HOME is the
-    # .../cuda/<ver> dir, with libcublas.so under the sibling math_libs/<ver>)
-    CUBLAS_SO_PATH=$(find ${CUDA_HOME} ${CUDA_HOME}/../../math_libs -name "libcublas.so" 2>/dev/null | head -n 1 | xargs -r realpath)
-fi
-if [ -e "${CUBLAS_SO_PATH}" ]
-then
-    echo "Found libcublas.so at ${CUBLAS_SO_PATH}"
-    export CUBLAS_SO_PATH
-else
-    echo "Warning: Could not find libcublas.so (CUDA_HOME=${CUDA_HOME:-unset})"
-fi
+source "${SCRIPT_DIR}/resolve_cublas.sh"
 
 OZIMMU_SO_PATH=$(find ${REPO_ROOT}/submodules -name "libozimmu.so" 2>/dev/null | head -n 1 | xargs -r realpath)
 if [ -e "${OZIMMU_SO_PATH}" ]
