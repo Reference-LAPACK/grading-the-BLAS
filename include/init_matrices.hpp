@@ -366,6 +366,105 @@ void init_test2b_matrices( int seed, const int dim, double *A, const int lda, do
     }
 }
 
+// Rectangular analogue of test2b for C^{m x n} = A^{m x k} * B^{k x n}.
+//
+// If test2b's circular shifts were applied unchanged with m < k (or n < k), the
+// shifted rows of A (cols of B) would no longer see every diagonal entry of D, so
+// the column norms of A (row norms of B) could vary widely. Instead, with
+// mn = min(m,n,k), zero-based indices, d(0:mn-1) an array of powers of two whose
+// exponents are roughly evenly spaced over [-log2_max_scl_factor, log2_max_scl_factor]
+// (the same recipe as the diagonal of D in test2a), and x(0:k-1) random in [1,2]:
+//
+//     A(i,j) = d((i+j) mod mn)      * x((i+j) mod k),    0 <= i < m,  0 <= j < k
+//     B(j,l) = d((j+l) mod mn)^(-1) * x((j+l) mod k),    0 <= j < k,  0 <= l < n
+//
+// so that C(i,i) = sum_{s=0}^{k-1} A(i,s)*B(s,i) = sum_{s=0}^{k-1} x((i+s) mod k)^2.
+// Every entry of d appears at least once in each row and column of A, and every
+// entry of 1/d in each row and column of B, so all rows and columns of A and of B
+// have roughly the same norm, as in test2b. When m = n = k this is test2b.
+// The random row/column permutations of test2b are then applied (permute=true):
+// p1 permutes rows of A, p2 permutes columns of B, and a shared p3 permutes the
+// columns of A and rows of B consistently, so C = P1 * (A_unpermuted * B_unpermuted) * P2^T.
+void init_test2b_rectangle_matrices( int seed, const int m, const int n, const int k, double *A, const int lda, double *B, const int ldb, int log2_max_scl_factor, bool permute = true ){
+
+    const int mn = std::min({m, n, k});
+    assert( mn >= 2 && "test2b_rectangle requires min(m,n,k) >= 2" );
+
+    std::mt19937 gen(seed);
+    std::uniform_real_distribution<double> generator(1.0, 2.0);
+
+    std::vector<double> x(k);
+    for ( int i = 0; i < k; ++i ){
+        x[i] = generator(gen);
+    }
+
+    std::vector<int> exponents(mn);
+    for ( int i = 0; i < mn; ++i ){
+        exponents[i] = ((-1 * mn / 2) + 1 + i) * ((double) log2_max_scl_factor / ( mn / 2 ) );
+    }
+    std::shuffle(exponents.begin(), exponents.end(), gen);
+
+    std::vector<double> d(mn);
+    std::vector<double> d_inv(mn);
+    for ( int i = 0; i < mn; ++i ){
+        d[i] = std::ldexp(1.0, exponents[i]);
+        d_inv[i] = std::ldexp(1.0, -1 * exponents[i]);
+    }
+
+    std::vector<double> unpermuted_A(m * k);
+    std::vector<double> unpermuted_B(k * n);
+
+    for ( int j = 0; j < k; ++j ){
+        for ( int i = 0; i < m; ++i ){
+            unpermuted_A[i + j*m] = d[(i + j) % mn] * x[(i + j) % k];
+        }
+    }
+
+    for ( int l = 0; l < n; ++l ){
+        for ( int j = 0; j < k; ++j ){
+            unpermuted_B[j + l*k] = d_inv[(j + l) % mn] * x[(j + l) % k];
+        }
+    }
+
+    if ( ! permute ){
+        copy_matrix(m, k, A, lda, &unpermuted_A[0], m);
+        copy_matrix(k, n, B, ldb, &unpermuted_B[0], k);
+        return;
+    }
+
+    // permuting
+    std::vector<int> p1(m);
+    std::vector<int> p2(n);
+    std::vector<int> p3(k);
+
+    for ( int i = 0; i < m; ++i ){
+        p1[i] = i;
+    }
+    for ( int i = 0; i < n; ++i ){
+        p2[i] = i;
+    }
+    for ( int i = 0; i < k; ++i ){
+        p3[i] = i;
+    }
+
+    std::mt19937 perm_gen(seed);
+    std::shuffle(p1.begin(), p1.end(), perm_gen);
+    std::shuffle(p2.begin(), p2.end(), perm_gen);
+    std::shuffle(p3.begin(), p3.end(), perm_gen);
+
+    for ( int j = 0; j < k; ++j ){
+        for ( int i = 0; i < m; ++i ){
+            A[i + j*lda] = unpermuted_A[p1[i] + p3[j]*m];
+        }
+    }
+
+    for ( int l = 0; l < n; ++l ){
+        for ( int j = 0; j < k; ++j ){
+            B[j + l*ldb] = unpermuted_B[p3[j] + p2[l]*k];
+        }
+    }
+}
+
 void init_test2c_matrices( int seed, const int dim, double *A, const int lda, double *B, const int ldb, int log2_max_scl_factor ){
 
     init_test2b_matrices(seed, dim, A, lda, B, ldb, log2_max_scl_factor);
@@ -513,6 +612,11 @@ void init_matrices( std::string type, const int log2_max_scl_factor, const int s
     }
     else if ( type == "U_1_2" ){
         init_uniform_random_matrices( static_cast<T>(1.0), static_cast<T>(2.0), seed, m, n, k, A, lda, B, ldb );
+    }
+    else if ( type == "test2b_rectangle" ){
+        // rectangular C = A * B with m, n, k allowed to differ
+        assert( seed == 0 && "test matrices must be deterministically generated" );
+        init_test2b_rectangle_matrices( seed, m, n, k, A, lda, B, ldb, log2_max_scl_factor );
     }
     else{
         assert( m == n && n == k && "test matrices must be square.");

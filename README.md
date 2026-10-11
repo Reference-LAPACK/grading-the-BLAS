@@ -87,6 +87,9 @@ make run_test1 DGEMM_CONFIG_MK=...
 make run_test2 DGEMM_CONFIG_MK=...
 make run_test3 DGEMM_CONFIG_MK=...
 make run_test4 DGEMM_CONFIG_MK=...
+
+# Rectangular variant of the test2b inputs (m, n, k pairwise distinct; not part of `grade`)
+make run_test2b_rectangle DGEMM_CONFIG_MK=...
 ```
 
 Figures are automatically written to `results/figures/<input_type>_<impl>.png`.
@@ -109,6 +112,38 @@ The harness has four test binaries, each targeting a different class of difficul
 - **Test 3** : Entrywise-positive inputs whose rows and columns are scaled to span a wide range of magnitudes, so each dot product accumulates terms of widely varying size with no cancellation. Stresses accumulation accuracy across large magnitude spreads — whether small contributions survive when summed alongside dominant ones. Referred to in the output structure on disk as `test3`.
 
 - **Test 4** : Inputs whose entries span an extreme dynamic range while the true products remain benign; the contraction dimension is randomly reordered across ten permutations and the worst relative error is reported. Stresses consistency of accuracy under reordering of the summation — sensitivity to accumulation order and internal blocking. Referred to in the output structure on disk as `test2b_w_inner_permute`.
+
+### Rectangular test2b (`test2b-rectangle`)
+
+`make run_test2b_rectangle` runs the test2b input class on rectangular products
+`C^{m x n} = A^{m x k} * B^{k x n}` with `m`, `n`, and `k` pairwise distinct, reporting max
+componentwise `f_A(n)` as in Test 2. Each sweep exponent `d` is offset per dimension:
+
+```
+m = 2^(d + LOG2_M_OFFSET)    n = 2^(d + LOG2_N_OFFSET)    k = 2^(d + LOG2_K_OFFSET)
+```
+
+The defaults `LOG2_M_OFFSET=0 LOG2_N_OFFSET=-1 LOG2_K_OFFSET=1` give `n < m < k`; override them on
+the `make` command line (e.g. `LOG2_M_OFFSET=1 LOG2_N_OFFSET=0 LOG2_K_OFFSET=-1` for `k < min(m,n)`).
+The three offsets must differ or compilation fails.
+
+When `m < k` (or `n < k`), test2b's circular shifts no longer guarantee that every diagonal
+entry of `D` meets every row of `A` (column of `B`), so column norms of `A` could vary widely.
+Instead, with `mn = min(m,n,k)`, `d(0:mn-1)` an array of powers of two whose exponents are
+roughly evenly spaced over the tested range (as for the diagonal of `D` in test2a), and
+`x(0:k-1)` random in `[1,2]`, the inputs are
+
+```
+A(i,j) = d((i+j) mod mn)      * x((i+j) mod k)
+B(j,l) = d((j+l) mod mn)^(-1) * x((j+l) mod k)
+```
+
+so that `C(i,i) = sum_s x((i+s) mod k)^2`, every entry of `d` appears in each row and column
+of `A` and every entry of `1/d` in each row and column of `B` (roughly equal row/column norms),
+and the construction reduces to test2b when `m = n = k`. The random row/column permutations of
+test2b are then applied. Results are written to `results/raw_data/test2b_rectangle/` with the same
+layout as `test2c`; the per-cell max `f_A(n)` is also printed to stdout, since the plotting
+scripts assume `m = n = k`.
 
 ---
 

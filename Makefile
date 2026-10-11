@@ -19,6 +19,13 @@ $(foreach v,$(CONFIG_VARS),$(eval $(v) := $$(strip $$($(v)))))
 OUTER_PERMUTE ?= 0
 INNER_PERMUTE ?= 10
 
+# test2b-rectangle shape: m = 2^(d+LOG2_M_OFFSET), n = 2^(d+LOG2_N_OFFSET), k = 2^(d+LOG2_K_OFFSET)
+# for each sweep exponent d; the three offsets must be pairwise distinct so m, n, k differ.
+# Override on the command line, e.g. LOG2_M_OFFSET=1 LOG2_N_OFFSET=0 LOG2_K_OFFSET=-1
+LOG2_M_OFFSET ?= 0
+LOG2_N_OFFSET ?= -1
+LOG2_K_OFFSET ?= 1
+
 # --- common CPPFLAGS (all test binaries) ---
 COMMON_CPPFLAGS :=
 COMMON_CPPFLAGS += -DDGEMM_IMPL_NAME=\"$(DGEMM_IMPL_NAME)\"
@@ -55,9 +62,14 @@ TEST4_CPPFLAGS += -DINNER_PERMUTE=$(INNER_PERMUTE)
 TEST4_OUTPUT_PATH := $(TEST4_BASE_INPUT_TYPE)_w_inner_permute
 endif
 
+# --- test2b-rectangle CPPFLAGS ---
+TEST2B_RECT_INPUT_TYPE := test2b_rectangle
+TEST2B_RECT_CPPFLAGS := -DINPUT_TYPE=\"$(TEST2B_RECT_INPUT_TYPE)\" \
+                        -DLOG2_M_OFFSET=$(LOG2_M_OFFSET) -DLOG2_N_OFFSET=$(LOG2_N_OFFSET) -DLOG2_K_OFFSET=$(LOG2_K_OFFSET)
+
 DGEMM_WRAPPER := $(SRC_DIR)/dgemm_wrapper.cpp
 
-.PHONY: run run_test1 run_test2 run_test3 run_test4 grade $(BIN_DIR)/test1 $(BIN_DIR)/test2 $(BIN_DIR)/test3 $(BIN_DIR)/test4 compute_distribution_stats stats
+.PHONY: run run_test1 run_test2 run_test3 run_test4 run_test2b_rectangle grade $(BIN_DIR)/test1 $(BIN_DIR)/test2 $(BIN_DIR)/test3 $(BIN_DIR)/test4 $(BIN_DIR)/test2b-rectangle compute_distribution_stats stats
 
 # --- test binaries ---
 $(BIN_DIR)/test1: $(SRC_DIR)/test1.cpp $(DGEMM_WRAPPER)
@@ -75,6 +87,10 @@ $(BIN_DIR)/test3: $(SRC_DIR)/test3.cpp $(DGEMM_WRAPPER)
 $(BIN_DIR)/test4: $(SRC_DIR)/test4.cpp $(DGEMM_WRAPPER)
 	@mkdir -p $(BIN_DIR)
 	$(CXX) -std=c++17 $(CXXFLAGS) $(COMMON_CPPFLAGS) $(TEST4_CPPFLAGS) -I$(INCLUDE_DIR) $^ $(LDFLAGS) -o $@
+
+$(BIN_DIR)/test2b-rectangle: $(SRC_DIR)/test2b-rectangle.cpp $(DGEMM_WRAPPER)
+	@mkdir -p $(BIN_DIR)
+	$(CXX) -std=c++17 $(CXXFLAGS) $(COMMON_CPPFLAGS) $(TEST2B_RECT_CPPFLAGS) -I$(INCLUDE_DIR) $^ $(LDFLAGS) -o $@
 
 # --- run targets ---
 run_test1: $(BIN_DIR)/test1
@@ -96,6 +112,13 @@ run_test4: $(BIN_DIR)/test4
 	@mkdir -p $(RESULTS_DIR)
 	$(RUN_PREFIX) ./$(BIN_DIR)/test4
 	.venv/bin/python3 ./scripts/plot_results_test_2_3_4.py $(RESULTS_DIR)/$(TEST4_OUTPUT_PATH)/$(DGEMM_IMPL_NAME)
+
+# rectangular test2b: m, n, k pairwise distinct. Per-cell max f_A(n) is printed to stdout
+# and written to $(RESULTS_DIR)/$(TEST2B_RECT_INPUT_TYPE)/; the plotting scripts assume
+# m = n = k, so no figure is produced.
+run_test2b_rectangle: $(BIN_DIR)/test2b-rectangle
+	@mkdir -p $(RESULTS_DIR)
+	$(RUN_PREFIX) ./$(BIN_DIR)/test2b-rectangle
 
 run: run_test1 run_test2 run_test3 run_test4
 
