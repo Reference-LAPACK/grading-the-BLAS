@@ -29,6 +29,15 @@ void dgemm_wrapper( const char transa, const char transb,
     cublasHandle_t handle;
     cublasCreate(&handle);
         
+#if CUBLAS_VERSION >= 130100
+    // ask cuBLAS to report the mantissa bit count its FP64 emulation guard chose for this call;
+    // it stays -1 when no emulated path was considered (emulation off, or a native-only call)
+    int *emulation_bits;
+    cudaHostAlloc((void**)&emulation_bits, sizeof(int), cudaHostAllocDefault);
+    *emulation_bits = -1;
+    cublasSetFixedPointEmulationMantissaBitCountPointer(handle, emulation_bits);
+#endif
+
     cublasOperation_t opA = CUBLAS_OP_N;
     cublasOperation_t opB = CUBLAS_OP_N;
 
@@ -123,6 +132,11 @@ void dgemm_wrapper( const char transa, const char transb,
     cublasDgemm(handle, opA, opB, m, n, k, &alpha, d_A, lda, d_B, ldb, &beta, d_C, ldc);
 
     cudaMemcpy(C, d_C, size_C, cudaMemcpyDeviceToHost);
+
+#if CUBLAS_VERSION >= 130100
+    fprintf(stderr, "dgemm m=%d n=%d k=%d emulation_mantissa_bits=%d\n", m, n, k, *emulation_bits);
+    cudaFreeHost(emulation_bits);
+#endif
 
     cudaFree(d_A);
     cudaFree(d_B);
